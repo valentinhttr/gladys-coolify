@@ -1,0 +1,108 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Release a new version or rebuild the current tagged version
+        type: choice
+        options: [release, rebuild]
+        default: release
+concurrency:
+  group: release
+  cancel-in-progress: false
+permissions:
+  contents: write
+  packages: write
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Compute semantic version and English release notes
+        if: inputs.mode != 'rebuild'
+        id: version
+        run: |
+          version=$(node scripts/release.mjs)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          npm run format
+          npm run check
+      - name: Commit release locally
+        if: inputs.mode != 'rebuild'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json gladys-assistant-integration.json CHANGELOG.md
+          git commit -m "chore(release): ${VERSION}"
+          git tag -a "v${VERSION}" -m "Release ${VERSION}"
+      - name: Prepare image metadata
+        id: image
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$MODE" = rebuild ]; then
+            test "$(git rev-parse "v${version}^{commit}")" = "$(git rev-parse HEAD)"
+            node --input-type=module -e "import fs from 'node:fs'; const log = fs.readFileSync('CHANGELOG.md', 'utf8'); fs.writeFileSync('release-notes.md', log.split(/^## /m)[1].replace(/^[^\n]*\n/, '').trim() + '\n');"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          # The action parses labels as CSV, which alters JSON array quoting.
+          # Put the manifest directly in a generated Dockerfile instead.
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const manifest = JSON.parse(fs.readFileSync('gladys-assistant-integration.json', 'utf8'));
+          const label = JSON.stringify(JSON.stringify(manifest)).replaceAll('$', '\\$');
+          fs.writeFileSync('Dockerfile.release', fs.readFileSync('Dockerfile', 'utf8') + '\nLABEL io.gladysassistant.manifest=' + label + '\n');
+          JS
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish both architectures
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.release
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ steps.image.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.version=${{ steps.image.outputs.version }}
+            org.opencontainers.image.revision=${{ steps.image.outputs.revision }}
+      - name: Verify public images and embedded manifest
+        env:
+          IMAGE_REVISION: ${{ steps.image.outputs.revision }}
+        run: node scripts/verify-image.mjs
+      - name: Publish version and GitHub release after a successful build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.image.outputs.version }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          if [ "$MODE" = rebuild ]; then
+            gh release edit "v${VERSION}" --title "v${VERSION}" --notes-file release-notes.md
+            gh release upload "v${VERSION}" gladys-assistant-integration.json --clobber
+          else
+            git push --atomic origin HEAD:main "v${VERSION}"
+            gh release create "v${VERSION}" --verify-tag --title "v${VERSION}" --notes-file release-notes.md gladys-assistant-integration.json
+          fi
+      - name: Installation reminder
+        run: |
+          echo 'The GHCR package must be public for anonymous Gladys pulls.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Store discovery stays disabled: this workflow never adds the gladys-assistant-integration repository topic.' >> "$GITHUB_STEP_SUMMARY"

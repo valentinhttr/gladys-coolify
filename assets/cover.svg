@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="534" viewBox="0 0 800 534" role="img" aria-labelledby="title">
+  <title id="title">Coolify</title>
+  <rect width="800" height="534" fill="#f6f3ff"/>
+  <svg x="268" y="135" width="264" height="264" viewBox="0 0 352 352">
+    <path d="M64 256v32H32v-32zm0 0V96h32v160ZM96 96V64h224V32h32v64Zm224 192h32v64H96v-32h224z" fill="#452e72"/>
+    <path d="M64 256H0V64h64Zm0-192V0h256v64Zm0 192h256v64H64Z" fill="#864ffc"/>
+  </svg>
+</svg>

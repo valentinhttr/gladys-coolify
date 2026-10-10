@@ -1,0 +1,42 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+  commit-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a Conventional Commit title for squash merging
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! [[ "$PR_TITLE" =~ ^(feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert)(\([^\)]+\))?!?:\ .+ ]]; then
+            echo 'Use a Conventional Commit title, for example feat(widgets): add server filters'
+            exit 1
+          fi

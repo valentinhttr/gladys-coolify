@@ -1,0 +1,1419 @@
+{
+  "manifest_version": 1,
+  "type": "device",
+  "name": "Coolify",
+  "description": {
+    "en": "Monitor Coolify servers, resources and deployments with customizable widgets.",
+    "fr": "Surveillez serveurs, ressources et déploiements Coolify avec des widgets personnalisables."
+  },
+  "version": "1.0.0",
+  "docker_image": "ghcr.io/valentinhttr/gladys-coolify:1.0.0",
+  "gladys_version": ">=5.1.0",
+  "cover_image": "https://raw.githubusercontent.com/valentinhttr/gladys-coolify/main/assets/cover.png",
+  "categories": ["network", "services"],
+  "transports": ["local", "cloud"],
+  "config_schema": [
+    {
+      "key": "token_help",
+      "type": "section",
+      "label": {
+        "en": "Prepare Coolify access",
+        "fr": "Préparer l’accès Coolify"
+      },
+      "description": {
+        "en": "In Coolify, select the team to monitor, then Keys & Tokens → API tokens → Create New Token. Enable only read. Do not enable read:sensitive, write, deploy or root. On self-hosted instances, enable API access in Settings and allow the source IP used by Gladys if an IP allowlist is configured. Use HTTPS outside a trusted local network. One integration monitors one token’s team.",
+        "fr": "Dans Coolify, sélectionnez l’équipe à surveiller, puis Keys & Tokens → API tokens → Create New Token. Activez uniquement read. N’activez pas read:sensitive, write, deploy ou root. En auto-hébergement, activez l’API dans Settings et autorisez l’IP source utilisée par Gladys si une liste d’IP est configurée. Utilisez HTTPS hors d’un réseau local de confiance. Une intégration surveille l’équipe de son token."
+      },
+      "links": [
+        {
+          "url": "https://coolify.io/docs/api/permissions",
+          "label": {
+            "en": "Token permissions",
+            "fr": "Droits du token"
+          }
+        },
+        {
+          "url": "https://coolify.io/docs/api/ip-allowlist",
+          "label": {
+            "en": "API access and IP allowlist",
+            "fr": "Accès API et IP autorisées"
+          }
+        }
+      ]
+    },
+    {
+      "key": "url",
+      "type": "string",
+      "label": {
+        "en": "Coolify instance URL",
+        "fr": "URL de l’instance Coolify"
+      },
+      "required": true,
+      "placeholder": {
+        "en": "https://coolify.example.com",
+        "fr": "https://coolify.exemple.fr"
+      },
+      "description": {
+        "en": "Instance URL; an optional /api/v1 suffix is accepted.",
+        "fr": "URL de l’instance ; le suffixe /api/v1 est facultatif."
+      }
+    },
+    {
+      "key": "api_token",
+      "type": "secret",
+      "label": {
+        "en": "API token",
+        "fr": "Token API"
+      },
+      "required": true
+    },
+    {
+      "key": "poll_interval",
+      "type": "number",
+      "label": {
+        "en": "Inventory refresh (seconds)",
+        "fr": "Actualisation de l’inventaire (secondes)"
+      },
+      "default": 60,
+      "min": 30,
+      "max": 3600
+    },
+    {
+      "key": "device_language",
+      "type": "select",
+      "label": {
+        "en": "Discovered device language",
+        "fr": "Langue des appareils découverts"
+      },
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais"
+          }
+        },
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français"
+          }
+        }
+      ],
+      "default": "fr"
+    },
+    {
+      "key": "widget_help",
+      "type": "section",
+      "label": {
+        "en": "Add your dashboard widgets",
+        "fr": "Ajouter les widgets au tableau de bord"
+      },
+      "description": {
+        "en": "Test the connection, add servers and resources from Discovery, then select them in each widget. The instance overview works without adding devices. Widget labels follow the viewer’s language. CPU/RAM/disk measurements are not exposed by the public API. “Last success” searches the latest 50 application deployments; it does not infer dates from resource updates.",
+        "fr": "Testez la connexion, ajoutez serveurs et ressources depuis Découverte, puis sélectionnez-les dans chaque widget. La vue d’ensemble fonctionne sans ajouter d’appareil. Les libellés suivent la langue du lecteur. Les mesures CPU/RAM/disque ne sont pas exposées par l’API publique. Le dernier succès est recherché parmi les 50 derniers déploiements applicatifs, sans déduire de date depuis les modifications de ressource."
+      }
+    },
+    {
+      "key": "monitoring_help",
+      "type": "section",
+      "label": {
+        "en": "Monitoring and scene alerts",
+        "fr": "Surveillance et alertes par scènes"
+      },
+      "description": {
+        "en": "Create a scene with a Coolify unavailable/recovered trigger, then a notification action. Events follow confirmed transitions; startup establishes a silent baseline. An API failure does not mean every application is down. HTTP checks below are optional and run from the Gladys integration container. HTTP probes run every 5 minutes. History is stored on disk for 30 days. Two confirmations mean roughly 5–10 minutes to detect a new HTTP outage.",
+        "fr": "Créez une scène avec un déclencheur Coolify indisponible/rétabli, puis une action de notification. Les événements suivent les transitions confirmées ; le démarrage établit une référence sans alerte. Une erreur API ne signifie pas que toutes les applications sont arrêtées. Les sondes HTTP ci-dessous sont facultatives et partent du conteneur de l’intégration Gladys. Les sondes HTTP passent toutes les 5 minutes. L’historique est conservé sur disque pendant 30 jours. Deux confirmations impliquent environ 5 à 10 minutes pour détecter une nouvelle panne HTTP."
+      }
+    },
+    {
+      "key": "alert_confirmations",
+      "type": "number",
+      "default": 2,
+      "min": 1,
+      "max": 10,
+      "label": {
+        "en": "Consecutive checks before an event",
+        "fr": "Contrôles consécutifs avant un événement"
+      }
+    },
+    {
+      "key": "http_mode",
+      "type": "select",
+      "default": "all",
+      "label": {
+        "en": "HTTP monitoring",
+        "fr": "Surveillance HTTP"
+      },
+      "options": [
+        {
+          "value": "all",
+          "label": {
+            "en": "All applications (automatic)",
+            "fr": "Toutes les applications (automatique)"
+          }
+        },
+        {
+          "value": "manual",
+          "label": {
+            "en": "Manual selection",
+            "fr": "Sélection manuelle"
+          }
+        },
+        {
+          "value": "off",
+          "label": {
+            "en": "Disabled",
+            "fr": "Désactivée"
+          }
+        }
+      ],
+      "description": {
+        "en": "By default, monitor every discovered Coolify application with a valid HTTP domain, including new applications. No checkboxes, device import or widget required. Servers, databases, service stacks and applications without a domain are not probed. Checks run every 5 minutes; history is kept for 30 days.",
+        "fr": "Par défaut, toutes les applications Coolify découvertes avec un domaine HTTP valide sont surveillées, y compris les nouvelles. Aucune case à cocher, aucun appareil à ajouter ni widget requis. Serveurs, bases, stacks de services et applications sans domaine ne sont pas sondés. Contrôles toutes les 5 minutes ; historique conservé 30 jours."
+      }
+    },
+    {
+      "key": "http_resources",
+      "type": "multi_select",
+      "source": "devices",
+      "label": {
+        "en": "Applications — manual mode only",
+        "fr": "Applications — uniquement en mode manuel"
+      },
+      "description": {
+        "en": "Ignored in All applications and Disabled modes: leave this list unchanged. In Manual selection mode, choose up to 20 imported applications; HTTP widgets can also add their application when automatic activation is enabled. Servers, databases and service stacks are ignored.",
+        "fr": "Liste ignorée dans les modes Toutes les applications et Désactivée : vous pouvez la laisser telle quelle. En Sélection manuelle, choisissez jusqu’à 20 applications ajoutées ; un widget HTTP peut aussi ajouter son application si son activation automatique est activée. Serveurs, bases et stacks ignorés."
+      }
+    },
+    {
+      "key": "http_timeout",
+      "type": "number",
+      "default": 5,
+      "min": 1,
+      "max": 10,
+      "label": {
+        "en": "HTTP timeout (seconds)",
+        "fr": "Délai HTTP maximal (secondes)"
+      }
+    },
+    {
+      "key": "http_codes",
+      "type": "string",
+      "default": "200-399",
+      "label": {
+        "en": "Accepted HTTP codes",
+        "fr": "Codes HTTP acceptés"
+      },
+      "description": {
+        "en": "Example: 200-399,401. A redirect is counted by its own code; the destination is not checked.",
+        "fr": "Exemple : 200-399,401. Une redirection est évaluée selon son propre code ; sa destination n’est pas testée."
+      }
+    }
+  ],
+  "actions": [
+    {
+      "key": "test_connection",
+      "label": {
+        "en": "Test connection and discover",
+        "fr": "Tester la connexion et découvrir"
+      },
+      "timeout_seconds": 120
+    }
+  ],
+  "widgets": [
+    {
+      "key": "overview",
+      "label": {
+        "en": "Instance overview",
+        "fr": "Vue d’ensemble"
+      },
+      "description": {
+        "en": "Monitor all servers or one selected server: availability, resource counts and filtered inventory.",
+        "fr": "Surveillez tous les serveurs ou un serveur précis : disponibilité, compteurs et inventaire filtré."
+      },
+      "icon": "activity",
+      "action_timeout_seconds": 15,
+      "settings": [
+        {
+          "key": "title",
+          "type": "string",
+          "label": {
+            "en": "Custom title",
+            "fr": "Titre personnalisé"
+          }
+        },
+        {
+          "key": "server",
+          "type": "select",
+          "label": {
+            "en": "Server (optional)",
+            "fr": "Serveur (facultatif)"
+          },
+          "source": "devices",
+          "description": {
+            "en": "Select a device named Server. Resource devices also appear in this Gladys menu, but are refused by the widget. Leave empty for all servers.",
+            "fr": "Choisissez un appareil nommé Serveur. Les ressources figurent aussi dans ce menu Gladys, mais le widget les refuse. Laissez vide pour tous les serveurs."
+          }
+        },
+        {
+          "key": "kinds",
+          "type": "multi_select",
+          "label": {
+            "en": "Resource types",
+            "fr": "Types de ressources"
+          },
+          "default": ["application", "database", "service", "other"],
+          "options": [
+            {
+              "value": "application",
+              "label": {
+                "en": "Applications",
+                "fr": "Applications"
+              }
+            },
+            {
+              "value": "database",
+              "label": {
+                "en": "Databases",
+                "fr": "Bases de données"
+              }
+            },
+            {
+              "value": "service",
+              "label": {
+                "en": "Services",
+                "fr": "Services"
+              }
+            },
+            {
+              "value": "other",
+              "label": {
+                "en": "Other resources",
+                "fr": "Autres ressources"
+              }
+            }
+          ]
+        },
+        {
+          "key": "state",
+          "type": "select",
+          "label": {
+            "en": "Status filter",
+            "fr": "Filtre d’état"
+          },
+          "options": [
+            {
+              "value": "all",
+              "label": {
+                "en": "All",
+                "fr": "Tous"
+              }
+            },
+            {
+              "value": "issues",
+              "label": {
+                "en": "Needs attention",
+                "fr": "À vérifier"
+              }
+            },
+            {
+              "value": "running",
+              "label": {
+                "en": "Running",
+                "fr": "En marche"
+              }
+            },
+            {
+              "value": "stopped",
+              "label": {
+                "en": "Stopped",
+                "fr": "Arrêtées"
+              }
+            },
+            {
+              "value": "unknown",
+              "label": {
+                "en": "Unknown",
+                "fr": "Inconnu"
+              }
+            }
+          ],
+          "default": "all"
+        },
+        {
+          "key": "search",
+          "type": "string",
+          "label": {
+            "en": "Resource name contains",
+            "fr": "Le nom de ressource contient"
+          }
+        },
+        {
+          "key": "layout",
+          "type": "select",
+          "label": {
+            "en": "Layout",
+            "fr": "Présentation"
+          },
+          "options": [
+            {
+              "value": "list",
+              "label": {
+                "en": "Status list",
+                "fr": "Liste d’états"
+              }
+            },
+            {
+              "value": "cards",
+              "label": {
+                "en": "Detailed cards",
+                "fr": "Cartes détaillées"
+              }
+            },
+            {
+              "value": "grid",
+              "label": {
+                "en": "Card grid",
+                "fr": "Grille de cartes"
+              }
+            }
+          ],
+          "default": "list",
+          "description": {
+            "en": "Status list keeps colored indicators in both themes. Cards show the hosting server; click for resource type.",
+            "fr": "La liste d’états garde ses indicateurs colorés dans les deux thèmes. Les cartes affichent le serveur ; cliquez pour le type de ressource."
+          }
+        },
+        {
+          "key": "limit",
+          "type": "number",
+          "label": {
+            "en": "Visible items",
+            "fr": "Éléments visibles"
+          },
+          "default": 6,
+          "min": 1,
+          "max": 12,
+          "description": {
+            "en": "Status list: 7 (8 with check time hidden). Cards: 8. Grid: 12.",
+            "fr": "Liste d’états : 7 (8 si la date est masquée). Cartes : 8. Grille : 12."
+          }
+        },
+        {
+          "key": "show_counts",
+          "type": "boolean",
+          "label": {
+            "en": "Show counters",
+            "fr": "Afficher les compteurs"
+          },
+          "default": true
+        },
+        {
+          "key": "refresh_interval",
+          "type": "number",
+          "label": {
+            "en": "Widget refresh (seconds)",
+            "fr": "Actualisation du widget (secondes)"
+          },
+          "default": 60,
+          "min": 30,
+          "max": 3600,
+          "description": {
+            "en": "Inventory freshness also depends on the integration polling interval.",
+            "fr": "La fraîcheur de l’inventaire dépend aussi de l’intervalle de l’intégration."
+          }
+        },
+        {
+          "key": "sort",
+          "type": "select",
+          "label": {
+            "en": "Sort order",
+            "fr": "Ordre de tri"
+          },
+          "options": [
+            {
+              "value": "issues",
+              "label": {
+                "en": "Issues first",
+                "fr": "Erreurs en premier"
+              }
+            },
+            {
+              "value": "name",
+              "label": {
+                "en": "Name",
+                "fr": "Nom"
+              }
+            }
+          ],
+          "default": "issues"
+        }
+      ]
+    },
+    {
+      "key": "resource",
+      "label": {
+        "en": "Application / resource",
+        "fr": "Application / ressource"
+      },
+      "description": {
+        "en": "Current state and latest application deployment.",
+        "fr": "État actuel et dernier déploiement applicatif."
+      },
+      "icon": "activity",
+      "action_timeout_seconds": 15,
+      "settings": [
+        {
+          "key": "title",
+          "type": "string",
+          "label": {
+            "en": "Custom title",
+            "fr": "Titre personnalisé"
+          }
+        },
+        {
+          "key": "resource",
+          "type": "select",
+          "label": {
+            "en": "Application or resource",
+            "fr": "Application ou ressource"
+          },
+          "source": "devices",
+          "required": true,
+          "description": {
+            "en": "Add the resource from Discovery, then select it here. Its server is detected automatically. Choose an application for deployment history.",
+            "fr": "Ajoutez la ressource depuis Découverte, puis choisissez-la ici. Son serveur est déduit automatiquement. Pour les déploiements, choisissez une application."
+          }
+        },
+        {
+          "key": "fields",
+          "type": "multi_select",
+          "label": {
+            "en": "Visible details",
+            "fr": "Informations visibles"
+          },
+          "default": ["status", "server", "type", "deployment", "commit", "duration"],
+          "options": [
+            {
+              "value": "status",
+              "label": {
+                "en": "Current status",
+                "fr": "État actuel"
+              }
+            },
+            {
+              "value": "server",
+              "label": {
+                "en": "Server",
+                "fr": "Serveur"
+              }
+            },
+            {
+              "value": "type",
+              "label": {
+                "en": "Resource type",
+                "fr": "Type de ressource"
+              }
+            },
+            {
+              "value": "deployment",
+              "label": {
+                "en": "Last attempt and success (last 50)",
+                "fr": "Dernière tentative et succès (50 derniers)"
+              }
+            },
+            {
+              "value": "commit",
+              "label": {
+                "en": "Git commit",
+                "fr": "Commit Git"
+              }
+            },
+            {
+              "value": "duration",
+              "label": {
+                "en": "Total duration (including queue)",
+                "fr": "Durée totale (attente comprise)"
+              }
+            }
+          ]
+        },
+        {
+          "key": "show_updated",
+          "type": "boolean",
+          "label": {
+            "en": "Show check time",
+            "fr": "Afficher la date de vérification"
+          },
+          "default": true
+        },
+        {
+          "key": "refresh_interval",
+          "type": "number",
+          "label": {
+            "en": "Widget refresh (seconds)",
+            "fr": "Actualisation du widget (secondes)"
+          },
+          "default": 60,
+          "min": 30,
+          "max": 3600,
+          "description": {
+            "en": "Inventory freshness also depends on the integration polling interval.",
+            "fr": "La fraîcheur de l’inventaire dépend aussi de l’intervalle de l’intégration."
+          }
+        },
+        {
+          "key": "show_refresh",
+          "type": "boolean",
+          "label": {
+            "en": "Show refresh button",
+            "fr": "Afficher le bouton Actualiser"
+          },
+          "default": true
+        }
+      ]
+    },
+    {
+      "key": "deployments",
+      "label": {
+        "en": "Deployment history",
+        "fr": "Historique déploiements"
+      },
+      "description": {
+        "en": "Application deployment results, dates, commits and durations.",
+        "fr": "Résultats, dates, commits et durées des déploiements applicatifs."
+      },
+      "icon": "activity",
+      "action_timeout_seconds": 15,
+      "settings": [
+        {
+          "key": "title",
+          "type": "string",
+          "label": {
+            "en": "Custom title",
+            "fr": "Titre personnalisé"
+          }
+        },
+        {
+          "key": "resource",
+          "type": "select",
+          "label": {
+            "en": "Application or resource",
+            "fr": "Application ou ressource"
+          },
+          "source": "devices",
+          "required": true,
+          "description": {
+            "en": "Add the resource from Discovery, then select it here. Its server is detected automatically. Choose an application for deployment history.",
+            "fr": "Ajoutez la ressource depuis Découverte, puis choisissez-la ici. Son serveur est déduit automatiquement. Pour les déploiements, choisissez une application."
+          }
+        },
+        {
+          "key": "result",
+          "type": "select",
+          "label": {
+            "en": "Deployment filter",
+            "fr": "Filtre des déploiements"
+          },
+          "options": [
+            {
+              "value": "all",
+              "label": {
+                "en": "All",
+                "fr": "Tous"
+              }
+            },
+            {
+              "value": "failed",
+              "label": {
+                "en": "Failed",
+                "fr": "Échoués"
+              }
+            },
+            {
+              "value": "success",
+              "label": {
+                "en": "Succeeded",
+                "fr": "Réussis"
+              }
+            },
+            {
+              "value": "active",
+              "label": {
+                "en": "Queued / in progress",
+                "fr": "En attente / en cours"
+              }
+            }
+          ],
+          "default": "all"
+        },
+        {
+          "key": "history_page",
+          "type": "number",
+          "label": {
+            "en": "History page (50 attempts)",
+            "fr": "Page d’historique (50 tentatives)"
+          },
+          "default": 1,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "layout",
+          "type": "select",
+          "label": {
+            "en": "Layout",
+            "fr": "Présentation"
+          },
+          "options": [
+            {
+              "value": "list",
+              "label": {
+                "en": "Chronological rows",
+                "fr": "Lignes chronologiques"
+              }
+            },
+            {
+              "value": "cards",
+              "label": {
+                "en": "Detailed cards",
+                "fr": "Cartes détaillées"
+              }
+            },
+            {
+              "value": "grid",
+              "label": {
+                "en": "Card grid",
+                "fr": "Grille de cartes"
+              }
+            }
+          ],
+          "default": "list"
+        },
+        {
+          "key": "limit",
+          "type": "number",
+          "label": {
+            "en": "Visible items",
+            "fr": "Éléments visibles"
+          },
+          "default": 6,
+          "min": 1,
+          "max": 12,
+          "description": {
+            "en": "Rows: up to 8, fewer when extra details are visible. Cards: 8. Grid: 12.",
+            "fr": "Lignes : jusqu’à 8, moins si d’autres détails sont visibles. Cartes : 8. Grille : 12."
+          }
+        },
+        {
+          "key": "fields",
+          "type": "multi_select",
+          "label": {
+            "en": "Visible details",
+            "fr": "Informations visibles"
+          },
+          "default": [],
+          "options": [
+            {
+              "value": "status",
+              "label": {
+                "en": "Current status",
+                "fr": "État actuel"
+              }
+            },
+            {
+              "value": "server",
+              "label": {
+                "en": "Server",
+                "fr": "Serveur"
+              }
+            },
+            {
+              "value": "type",
+              "label": {
+                "en": "Resource type",
+                "fr": "Type de ressource"
+              }
+            },
+            {
+              "value": "commit",
+              "label": {
+                "en": "Git commit",
+                "fr": "Commit Git"
+              }
+            },
+            {
+              "value": "duration",
+              "label": {
+                "en": "Total duration (including queue)",
+                "fr": "Durée totale (attente comprise)"
+              }
+            }
+          ],
+          "description": {
+            "en": "Commit and duration add a second row per deployment. Leave empty for a compact timeline.",
+            "fr": "Commit et durée ajoutent une seconde ligne par déploiement. Laissez vide pour une chronologie compacte."
+          }
+        },
+        {
+          "key": "show_updated",
+          "type": "boolean",
+          "default": true,
+          "label": {
+            "en": "Show check time",
+            "fr": "Afficher la date de vérification"
+          }
+        },
+        {
+          "key": "refresh_interval",
+          "type": "number",
+          "label": {
+            "en": "Widget refresh (seconds)",
+            "fr": "Actualisation du widget (secondes)"
+          },
+          "default": 60,
+          "min": 30,
+          "max": 3600,
+          "description": {
+            "en": "Inventory freshness also depends on the integration polling interval.",
+            "fr": "La fraîcheur de l’inventaire dépend aussi de l’intervalle de l’intégration."
+          }
+        },
+        {
+          "key": "show_refresh",
+          "type": "boolean",
+          "label": {
+            "en": "Show refresh button",
+            "fr": "Afficher le bouton Actualiser"
+          },
+          "default": true
+        }
+      ]
+    },
+    {
+      "key": "health",
+      "label": {
+        "en": "HTTP availability",
+        "fr": "Disponibilité HTTP"
+      },
+      "description": {
+        "en": "HTTP checks every 5 minutes, with persistent 24-hour, 7-day and 30-day history.",
+        "fr": "Contrôles HTTP toutes les 5 minutes, avec historique persistant sur 24 h, 7 jours et 30 jours."
+      },
+      "icon": "activity",
+      "action_timeout_seconds": 15,
+      "settings": [
+        {
+          "key": "title",
+          "type": "string",
+          "label": {
+            "en": "Custom title",
+            "fr": "Titre personnalisé"
+          }
+        },
+        {
+          "key": "resource",
+          "type": "select",
+          "label": {
+            "en": "Application",
+            "fr": "Application"
+          },
+          "source": "devices",
+          "required": true,
+          "description": {
+            "en": "Choose an imported application with a Coolify domain. Monitoring is already automatic by default, independently of the widget.",
+            "fr": "Choisissez une application ajoutée avec un domaine Coolify. La surveillance est déjà automatique par défaut, indépendamment du widget."
+          }
+        },
+        {
+          "key": "auto_monitor",
+          "type": "boolean",
+          "default": true,
+          "label": {
+            "en": "Add application in manual mode",
+            "fr": "Ajouter l’application en mode manuel"
+          },
+          "description": {
+            "en": "In Manual selection mode, this widget adds its application to the monitored list. All applications mode already monitors it; Disabled mode stays disabled. Removing a widget does not stop monitoring.",
+            "fr": "En Sélection manuelle, ce widget ajoute son application à la liste surveillée. Le mode Toutes les applications la surveille déjà ; le mode Désactivée reste désactivé. Supprimer un widget n’arrête pas la surveillance."
+          }
+        },
+        {
+          "key": "show_stats",
+          "type": "boolean",
+          "default": true,
+          "label": {
+            "en": "Show statistics",
+            "fr": "Afficher les statistiques"
+          }
+        },
+        {
+          "key": "show_chart",
+          "type": "boolean",
+          "default": true,
+          "label": {
+            "en": "Show response time chart",
+            "fr": "Afficher la courbe de réponse"
+          }
+        },
+        {
+          "key": "chart_type",
+          "type": "select",
+          "default": "area",
+          "label": {
+            "en": "Period and chart",
+            "fr": "Période et graphique"
+          },
+          "options": [
+            {
+              "value": "area",
+              "label": {
+                "en": "24 hours · filled curve",
+                "fr": "24 heures · courbe remplie"
+              }
+            },
+            {
+              "value": "area_7d",
+              "label": {
+                "en": "7 days · filled curve",
+                "fr": "7 jours · courbe remplie"
+              }
+            },
+            {
+              "value": "area_30d",
+              "label": {
+                "en": "30 days · filled curve",
+                "fr": "30 jours · courbe remplie"
+              }
+            },
+            {
+              "value": "line",
+              "label": {
+                "en": "24 hours · line",
+                "fr": "24 heures · courbe simple"
+              }
+            },
+            {
+              "value": "line_7d",
+              "label": {
+                "en": "7 days · line",
+                "fr": "7 jours · courbe simple"
+              }
+            },
+            {
+              "value": "line_30d",
+              "label": {
+                "en": "30 days · line",
+                "fr": "30 jours · courbe simple"
+              }
+            }
+          ],
+          "description": {
+            "en": "Statistics use every check in the period. Chart intervals: 5 min / 1 h / 3 h. Red markers identify up to 8 recent intervals with failures. Missing timings use bars.",
+            "fr": "Les statistiques utilisent tous les contrôles de la période. Tranches du graphique : 5 min / 1 h / 3 h. Les repères rouges indiquent jusqu’à 8 tranches récentes avec échecs. Les temps manquants utilisent des barres."
+          }
+        },
+        {
+          "key": "fields",
+          "type": "multi_select",
+          "default": ["url", "code", "checked", "window"],
+          "label": {
+            "en": "Visible details",
+            "fr": "Informations visibles"
+          },
+          "options": [
+            {
+              "value": "url",
+              "label": {
+                "en": "Domain",
+                "fr": "Domaine"
+              }
+            },
+            {
+              "value": "code",
+              "label": {
+                "en": "HTTP code",
+                "fr": "Code HTTP"
+              }
+            },
+            {
+              "value": "checked",
+              "label": {
+                "en": "Check time",
+                "fr": "Date de vérification"
+              }
+            },
+            {
+              "value": "window",
+              "label": {
+                "en": "Start of sample window",
+                "fr": "Début de la fenêtre mesurée"
+              }
+            }
+          ]
+        },
+        {
+          "key": "show_link",
+          "type": "boolean",
+          "default": true,
+          "label": {
+            "en": "Show application link",
+            "fr": "Afficher le lien de l’application"
+          }
+        },
+        {
+          "key": "refresh_interval",
+          "type": "number",
+          "label": {
+            "en": "Widget refresh (seconds)",
+            "fr": "Actualisation du widget (secondes)"
+          },
+          "default": 60,
+          "min": 30,
+          "max": 3600,
+          "description": {
+            "en": "Refreshes the display only. HTTP probes run every 5 minutes, independently of widget views and Coolify inventory polling.",
+            "fr": "Actualise uniquement l’affichage. Les sondes HTTP passent toutes les 5 minutes, indépendamment des vues du widget et de la collecte Coolify."
+          }
+        },
+        {
+          "key": "show_refresh",
+          "type": "boolean",
+          "label": {
+            "en": "Show refresh button",
+            "fr": "Afficher le bouton Actualiser"
+          },
+          "default": true
+        }
+      ]
+    }
+  ],
+  "scene_triggers": [
+    {
+      "key": "resource_unavailable",
+      "label": {
+        "en": "Resource unavailable",
+        "fr": "Ressource indisponible"
+      },
+      "description": {
+        "en": "After the configured number of consecutive checks. No repeated event while the state is unchanged.",
+        "fr": "Après le nombre de contrôles consécutifs configuré. Aucun événement répété tant que l’état ne change pas."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device (optional)",
+            "fr": "Appareil (facultatif)"
+          },
+          "description": {
+            "en": "Leave empty to monitor all relevant resources.",
+            "fr": "Laissez vide pour toutes les ressources concernées."
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Name",
+            "fr": "Nom"
+          }
+        },
+        {
+          "key": "server",
+          "type": "string",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur"
+          }
+        },
+        {
+          "key": "url",
+          "type": "string",
+          "label": {
+            "en": "Application URL",
+            "fr": "URL de l’application"
+          }
+        },
+        {
+          "key": "checked_at",
+          "type": "string",
+          "label": {
+            "en": "Check time (UTC)",
+            "fr": "Date de contrôle (UTC)"
+          }
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "label": {
+            "en": "Coolify status",
+            "fr": "État Coolify"
+          }
+        }
+      ]
+    },
+    {
+      "key": "resource_recovered",
+      "label": {
+        "en": "Resource recovered",
+        "fr": "Ressource rétablie"
+      },
+      "description": {
+        "en": "After the configured number of consecutive checks. No repeated event while the state is unchanged.",
+        "fr": "Après le nombre de contrôles consécutifs configuré. Aucun événement répété tant que l’état ne change pas."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device (optional)",
+            "fr": "Appareil (facultatif)"
+          },
+          "description": {
+            "en": "Leave empty to monitor all relevant resources.",
+            "fr": "Laissez vide pour toutes les ressources concernées."
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Name",
+            "fr": "Nom"
+          }
+        },
+        {
+          "key": "server",
+          "type": "string",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur"
+          }
+        },
+        {
+          "key": "url",
+          "type": "string",
+          "label": {
+            "en": "Application URL",
+            "fr": "URL de l’application"
+          }
+        },
+        {
+          "key": "checked_at",
+          "type": "string",
+          "label": {
+            "en": "Check time (UTC)",
+            "fr": "Date de contrôle (UTC)"
+          }
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "label": {
+            "en": "Coolify status",
+            "fr": "État Coolify"
+          }
+        }
+      ]
+    },
+    {
+      "key": "server_unavailable",
+      "label": {
+        "en": "Server unavailable",
+        "fr": "Serveur indisponible"
+      },
+      "description": {
+        "en": "After the configured number of consecutive checks. No repeated event while the state is unchanged.",
+        "fr": "Après le nombre de contrôles consécutifs configuré. Aucun événement répété tant que l’état ne change pas."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device (optional)",
+            "fr": "Appareil (facultatif)"
+          },
+          "description": {
+            "en": "Leave empty to monitor all relevant resources.",
+            "fr": "Laissez vide pour toutes les ressources concernées."
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Name",
+            "fr": "Nom"
+          }
+        },
+        {
+          "key": "server",
+          "type": "string",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur"
+          }
+        },
+        {
+          "key": "url",
+          "type": "string",
+          "label": {
+            "en": "Application URL",
+            "fr": "URL de l’application"
+          }
+        },
+        {
+          "key": "checked_at",
+          "type": "string",
+          "label": {
+            "en": "Check time (UTC)",
+            "fr": "Date de contrôle (UTC)"
+          }
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "label": {
+            "en": "Coolify status",
+            "fr": "État Coolify"
+          }
+        }
+      ]
+    },
+    {
+      "key": "server_recovered",
+      "label": {
+        "en": "Server recovered",
+        "fr": "Serveur rétabli"
+      },
+      "description": {
+        "en": "After the configured number of consecutive checks. No repeated event while the state is unchanged.",
+        "fr": "Après le nombre de contrôles consécutifs configuré. Aucun événement répété tant que l’état ne change pas."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device (optional)",
+            "fr": "Appareil (facultatif)"
+          },
+          "description": {
+            "en": "Leave empty to monitor all relevant resources.",
+            "fr": "Laissez vide pour toutes les ressources concernées."
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Name",
+            "fr": "Nom"
+          }
+        },
+        {
+          "key": "server",
+          "type": "string",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur"
+          }
+        },
+        {
+          "key": "url",
+          "type": "string",
+          "label": {
+            "en": "Application URL",
+            "fr": "URL de l’application"
+          }
+        },
+        {
+          "key": "checked_at",
+          "type": "string",
+          "label": {
+            "en": "Check time (UTC)",
+            "fr": "Date de contrôle (UTC)"
+          }
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "label": {
+            "en": "Coolify status",
+            "fr": "État Coolify"
+          }
+        }
+      ]
+    },
+    {
+      "key": "http_unavailable",
+      "label": {
+        "en": "HTTP endpoint unavailable",
+        "fr": "Domaine HTTP indisponible"
+      },
+      "description": {
+        "en": "After the configured number of consecutive checks. No repeated event while the state is unchanged.",
+        "fr": "Après le nombre de contrôles consécutifs configuré. Aucun événement répété tant que l’état ne change pas."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device (optional)",
+            "fr": "Appareil (facultatif)"
+          },
+          "description": {
+            "en": "Leave empty to monitor all relevant resources.",
+            "fr": "Laissez vide pour toutes les ressources concernées."
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Name",
+            "fr": "Nom"
+          }
+        },
+        {
+          "key": "server",
+          "type": "string",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur"
+          }
+        },
+        {
+          "key": "url",
+          "type": "string",
+          "label": {
+            "en": "Application URL",
+            "fr": "URL de l’application"
+          }
+        },
+        {
+          "key": "checked_at",
+          "type": "string",
+          "label": {
+            "en": "Check time (UTC)",
+            "fr": "Date de contrôle (UTC)"
+          }
+        },
+        {
+          "key": "http_code",
+          "type": "number",
+          "label": {
+            "en": "HTTP code",
+            "fr": "Code HTTP"
+          }
+        },
+        {
+          "key": "response_ms",
+          "type": "number",
+          "label": {
+            "en": "Response time (ms)",
+            "fr": "Temps de réponse (ms)"
+          }
+        }
+      ]
+    },
+    {
+      "key": "http_recovered",
+      "label": {
+        "en": "HTTP endpoint recovered",
+        "fr": "Domaine HTTP rétabli"
+      },
+      "description": {
+        "en": "After the configured number of consecutive checks. No repeated event while the state is unchanged.",
+        "fr": "Après le nombre de contrôles consécutifs configuré. Aucun événement répété tant que l’état ne change pas."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device (optional)",
+            "fr": "Appareil (facultatif)"
+          },
+          "description": {
+            "en": "Leave empty to monitor all relevant resources.",
+            "fr": "Laissez vide pour toutes les ressources concernées."
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Name",
+            "fr": "Nom"
+          }
+        },
+        {
+          "key": "server",
+          "type": "string",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur"
+          }
+        },
+        {
+          "key": "url",
+          "type": "string",
+          "label": {
+            "en": "Application URL",
+            "fr": "URL de l’application"
+          }
+        },
+        {
+          "key": "checked_at",
+          "type": "string",
+          "label": {
+            "en": "Check time (UTC)",
+            "fr": "Date de contrôle (UTC)"
+          }
+        },
+        {
+          "key": "http_code",
+          "type": "number",
+          "label": {
+            "en": "HTTP code",
+            "fr": "Code HTTP"
+          }
+        },
+        {
+          "key": "response_ms",
+          "type": "number",
+          "label": {
+            "en": "Response time (ms)",
+            "fr": "Temps de réponse (ms)"
+          }
+        }
+      ]
+    }
+  ]
+}
