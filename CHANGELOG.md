@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0
+
+### Features
+
+- **sdk:** upgrade Gladys integration SDK to 0.15.0 ([5b44cd0](https://github.com/valentinhttr/gladys-coolify/commit/5b44cd0af7d4f8742c02bb2bf4bb80ed96828b9a))
+
+### Contributors
+
+- Valentin Hutter
+
+[Full changelog](https://github.com/valentinhttr/gladys-coolify/compare/v1.0.0...v1.1.0)
+
 ## 1.0.0
 
 ### Features
