@@ -1,6 +1,6 @@
 # Monitor Coolify in Gladys
 
-Requires Gladys **5.1.0 or later** and a Coolify v4 instance exposing the public `/api/v1` API. The integration uses SDK **0.14.0**. The API surface varies across Coolify releases; unsupported fields remain unavailable rather than being estimated.
+Requires Gladys **5.1.0 or later** and a Coolify v4 instance exposing the public `/api/v1` API. The integration uses SDK **0.15.0**. The API surface varies across Coolify releases; unsupported fields remain unavailable rather than being estimated.
 
 ## Create a token
 

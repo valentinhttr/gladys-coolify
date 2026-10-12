@@ -15,9 +15,9 @@ Run **Actions → Release → Run workflow** on `main`. The workflow:
 
 Do not manually bump versions or publish an additional release for a documentation-only adjustment unless requested. A failed image build must not produce a GitHub release. If release creation fails after the tag was pushed, publish the release for that existing tag instead of incrementing again.
 
-## Initial 1.0.0 stabilization
+## Published releases
 
-The owner has explicitly requested replacing 1.0.0 during initial testing. Until the owner ends this phase, keep the release, package and image at 1.0.0. Consolidate authorized changes into the initial commit, move the existing annotated tag using exact force-with-lease protection, and run Release with `mode: rebuild` on that tagged main commit. This mode verifies the tag matches HEAD, rebuilds both architectures and replaces release notes and the attached manifest without incrementing the version. Remove superseded Actions runs/artifacts after the new build succeeds. Do not put this procedure in user documentation.
+Initial 1.0.0 stabilization is complete. Publish new semantic versions through the standard release workflow; preserve existing release tags and Git history. Use `mode: rebuild` only when explicitly requested for an existing release whose tag matches HEAD.
 
 Every published image embeds the compact manifest as `io.gladysassistant.manifest`. Gladys can then refresh the developer-install manifest during a forced update even when the version stays unchanged. Verify the anonymous image digest, both architectures, image revision/manifest, attached manifest and tag source archive after publishing.
 

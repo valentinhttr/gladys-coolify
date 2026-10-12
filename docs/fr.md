@@ -1,6 +1,6 @@
 # Surveiller Coolify dans Gladys
 
-Nécessite **Gladys 5.1.0 ou plus récent**, et une instance Coolify v4 proposant l’API publique `/api/v1`. Le SDK utilisé est **0.14.0**. Les champs disponibles varient selon la version de Coolify : une information absente n’est jamais estimée.
+Nécessite **Gladys 5.1.0 ou plus récent**, et une instance Coolify v4 proposant l’API publique `/api/v1`. Le SDK utilisé est **0.15.0**. Les champs disponibles varient selon la version de Coolify : une information absente n’est jamais estimée.
 
 ## Créer le token
 

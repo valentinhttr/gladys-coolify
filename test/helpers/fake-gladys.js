@@ -1,5 +1,5 @@
-// The published SDK 0.14.0 has no /testing export. Keep its real public methods
-// and replace only the HTTP transport, validating the payloads at that boundary.
+// Keep the real SDK public methods covered by replacing only the HTTP transport,
+// validating Coolify-specific payloads at that boundary instead of using /testing.
 import { GladysIntegration } from '@gladysassistant/integration-sdk';
 import assert from 'node:assert/strict';
 export function createFakeGladys(selector = 'coolify') {
